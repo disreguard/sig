@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { sha256, formatHash } from './hash.js';
-import { loadSig, listSigs } from './store.js';
+import { loadSig, loadSignedContent, listSigs } from './store.js';
 import { logEvent } from './audit.js';
 import { loadConfig, sigDir } from './config.js';
+import { resolveContainedPath } from './paths.js';
 import { extractPlaceholders } from '../templates/engines.js';
 import type { VerifyResult, CheckResult, TemplateEngine } from '../types.js';
 
@@ -12,27 +13,30 @@ export async function verifyFile(
   filePath: string
 ): Promise<VerifyResult> {
   const config = await loadConfig(projectRoot);
-  const absPath = resolve(projectRoot, filePath);
-  const relPath = relative(projectRoot, absPath);
+  const relPath = resolveContainedPath(projectRoot, filePath);
   const dir = sigDir(projectRoot);
 
-  const sig = await loadSig(dir, relPath);
+  const { signature: sig, error: loadError } = await loadSig(dir, relPath);
+
   if (!sig) {
+    const detail = loadError === 'corrupted'
+      ? 'Signature file is corrupted or tampered with'
+      : 'No signature found';
     await logEvent(dir, {
       event: 'verify-fail',
       file: relPath,
-      detail: 'No signature found',
+      detail,
     });
     return {
       verified: false,
       file: relPath,
-      error: 'No signature found for this file',
+      error: detail,
     };
   }
 
   let content: string;
   try {
-    content = await readFile(absPath, 'utf8');
+    content = await readFile(resolve(projectRoot, relPath), 'utf8');
   } catch {
     await logEvent(dir, {
       event: 'verify-fail',
@@ -64,18 +68,23 @@ export async function verifyFile(
     });
   }
 
+  // Return the stored signed content, not the live file
+  const signedContent = verified
+    ? (await loadSignedContent(dir, relPath) ?? content)
+    : undefined;
+
   const engines = config.templates?.engine
     ? (Array.isArray(config.templates.engine) ? config.templates.engine : [config.templates.engine])
     : (sig.templateEngine ? [sig.templateEngine as TemplateEngine] : undefined);
 
-  const placeholders = verified && engines
-    ? extractPlaceholders(content, engines, config.templates?.custom)
+  const placeholders = verified && signedContent && engines
+    ? extractPlaceholders(signedContent, engines, config.templates?.custom)
     : undefined;
 
   return {
     verified,
     file: relPath,
-    template: verified ? content : undefined,
+    template: signedContent,
     hash: currentHash,
     signedBy: sig.signedBy,
     signedAt: sig.signedAt,
@@ -88,18 +97,20 @@ export async function checkFile(
   projectRoot: string,
   filePath: string
 ): Promise<CheckResult> {
-  const absPath = resolve(projectRoot, filePath);
-  const relPath = relative(projectRoot, absPath);
+  const relPath = resolveContainedPath(projectRoot, filePath);
   const dir = sigDir(projectRoot);
 
-  const sig = await loadSig(dir, relPath);
+  const { signature: sig, error: loadError } = await loadSig(dir, relPath);
   if (!sig) {
-    return { file: relPath, status: 'unsigned' };
+    return {
+      file: relPath,
+      status: loadError === 'corrupted' ? 'corrupted' : 'unsigned',
+    };
   }
 
   let content: string;
   try {
-    content = await readFile(absPath, 'utf8');
+    content = await readFile(resolve(projectRoot, relPath), 'utf8');
   } catch {
     return { file: relPath, status: 'modified', signature: sig };
   }

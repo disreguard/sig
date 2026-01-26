@@ -68,6 +68,6 @@ export interface AuditEntry {
 
 export interface CheckResult {
   file: string;
-  status: 'signed' | 'modified' | 'unsigned';
+  status: 'signed' | 'modified' | 'unsigned' | 'corrupted';
   signature?: Signature;
 }

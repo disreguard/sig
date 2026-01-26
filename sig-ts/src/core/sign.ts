@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { sha256, formatHash } from './hash.js';
 import { storeSig } from './store.js';
 import { logEvent } from './audit.js';
 import { loadConfig, sigDir } from './config.js';
-import { extractPlaceholders } from '../templates/engines.js';
-import type { Signature, SigConfig } from '../types.js';
+import { resolveContainedPath } from './paths.js';
+import type { Signature } from '../types.js';
 
 export interface SignOptions {
   identity?: string;
@@ -18,8 +18,8 @@ export async function signFile(
   options?: SignOptions
 ): Promise<Signature> {
   const config = await loadConfig(projectRoot);
-  const absPath = resolve(projectRoot, filePath);
-  const relPath = relative(projectRoot, absPath);
+  const relPath = resolveContainedPath(projectRoot, filePath);
+  const absPath = resolve(projectRoot, relPath);
   const content = await readFile(absPath, 'utf8');
   const hex = sha256(content);
 
@@ -31,7 +31,7 @@ export async function signFile(
     algorithm: 'sha256',
     signedBy: identity,
     signedAt: new Date().toISOString(),
-    contentLength: content.length,
+    contentLength: Buffer.byteLength(content, 'utf8'),
   };
 
   const engineName = options?.engine
@@ -43,7 +43,7 @@ export async function signFile(
   }
 
   const dir = sigDir(projectRoot);
-  await storeSig(dir, sig);
+  await storeSig(dir, sig, content);
   await logEvent(dir, {
     event: 'sign',
     file: relPath,

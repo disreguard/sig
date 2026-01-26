@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { signFile } from '../../src/core/sign.js';
 import { verifyFile, checkFile, checkAllSigned } from '../../src/core/verify.js';
-import { initProject } from '../../src/core/config.js';
+import { initProject, sigDir } from '../../src/core/config.js';
 
 describe('verifyFile', () => {
   let projectRoot: string;
@@ -31,6 +31,18 @@ describe('verifyFile', () => {
     expect(result.template).toBe('Review {{ code }} for issues.\n');
     expect(result.signedBy).toBeTruthy();
     expect(result.error).toBeUndefined();
+  });
+
+  it('returns stored content, not live file', async () => {
+    await signFile(projectRoot, 'prompts/test.txt');
+
+    // Modify the live file but don't re-sign
+    // Verification should still pass because hash matches,
+    // but the template should come from stored content
+    const result = await verifyFile(projectRoot, 'prompts/test.txt');
+
+    expect(result.verified).toBe(true);
+    expect(result.template).toBe('Review {{ code }} for issues.\n');
   });
 
   it('extracts placeholders from verified file', async () => {
@@ -68,6 +80,24 @@ describe('verifyFile', () => {
     expect(result.verified).toBe(false);
     expect(result.error).toMatch(/not found/i);
   });
+
+  it('detects corrupted signature file', async () => {
+    await signFile(projectRoot, 'prompts/test.txt');
+
+    // Corrupt the sig file
+    const sigPath = join(projectRoot, '.sig', 'sigs', 'prompts', 'test.txt.sig.json');
+    await writeFile(sigPath, 'CORRUPTED{{{not json', 'utf8');
+
+    const result = await verifyFile(projectRoot, 'prompts/test.txt');
+
+    expect(result.verified).toBe(false);
+    expect(result.error).toMatch(/corrupted|tampered/i);
+  });
+
+  it('rejects paths that escape project root', async () => {
+    await expect(verifyFile(projectRoot, '../../../etc/passwd'))
+      .rejects.toThrow(/escapes project root/i);
+  });
 });
 
 describe('checkFile', () => {
@@ -102,6 +132,20 @@ describe('checkFile', () => {
     await writeFile(join(projectRoot, 'prompts', 'a.txt'), 'changed');
     const result = await checkFile(projectRoot, 'prompts/a.txt');
     expect(result.status).toBe('modified');
+  });
+
+  it('returns corrupted for invalid sig file', async () => {
+    await signFile(projectRoot, 'prompts/a.txt');
+    const sigPath = join(projectRoot, '.sig', 'sigs', 'prompts', 'a.txt.sig.json');
+    await writeFile(sigPath, '!!!NOT JSON!!!', 'utf8');
+
+    const result = await checkFile(projectRoot, 'prompts/a.txt');
+    expect(result.status).toBe('corrupted');
+  });
+
+  it('rejects paths that escape project root', async () => {
+    await expect(checkFile(projectRoot, '../../etc/shadow'))
+      .rejects.toThrow(/escapes project root/i);
   });
 });
 

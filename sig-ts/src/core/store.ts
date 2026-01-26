@@ -1,38 +1,58 @@
 import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
-import { join, dirname, relative } from 'node:path';
+import { join, dirname } from 'node:path';
 import { existsSync } from 'node:fs';
 import type { Signature } from '../types.js';
 
 const SIGS_DIR = 'sigs';
 const SIG_EXT = '.sig.json';
+const CONTENT_EXT = '.sig.content';
 
 function sigPath(sigDir: string, filePath: string): string {
   return join(sigDir, SIGS_DIR, filePath + SIG_EXT);
 }
 
-export async function storeSig(sigDir: string, sig: Signature): Promise<void> {
-  const path = sigPath(sigDir, sig.file);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(sig, null, 2) + '\n', 'utf8');
+function contentPath(sigDir: string, filePath: string): string {
+  return join(sigDir, SIGS_DIR, filePath + CONTENT_EXT);
 }
 
-export async function loadSig(sigDir: string, filePath: string): Promise<Signature | null> {
+export async function storeSig(sigDir: string, sig: Signature, content: string): Promise<void> {
+  const metaPath = sigPath(sigDir, sig.file);
+  await mkdir(dirname(metaPath), { recursive: true });
+  await writeFile(metaPath, JSON.stringify(sig, null, 2) + '\n', 'utf8');
+  await writeFile(contentPath(sigDir, sig.file), content, 'utf8');
+}
+
+export interface LoadSigResult {
+  signature: Signature | null;
+  error?: 'not-found' | 'corrupted';
+}
+
+export async function loadSig(sigDir: string, filePath: string): Promise<LoadSigResult> {
   const path = sigPath(sigDir, filePath);
+  let raw: string;
   try {
-    const raw = await readFile(path, 'utf8');
-    return JSON.parse(raw) as Signature;
+    raw = await readFile(path, 'utf8');
+  } catch {
+    return { signature: null, error: 'not-found' };
+  }
+  try {
+    return { signature: JSON.parse(raw) as Signature };
+  } catch {
+    return { signature: null, error: 'corrupted' };
+  }
+}
+
+export async function loadSignedContent(sigDir: string, filePath: string): Promise<string | null> {
+  try {
+    return await readFile(contentPath(sigDir, filePath), 'utf8');
   } catch {
     return null;
   }
 }
 
 export async function deleteSig(sigDir: string, filePath: string): Promise<void> {
-  const path = sigPath(sigDir, filePath);
-  try {
-    await unlink(path);
-  } catch {
-    // ignore if not found
-  }
+  try { await unlink(sigPath(sigDir, filePath)); } catch { /* ignore */ }
+  try { await unlink(contentPath(sigDir, filePath)); } catch { /* ignore */ }
 }
 
 export async function listSigs(sigDir: string): Promise<Signature[]> {

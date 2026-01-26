@@ -15,22 +15,23 @@ server.registerTool('verify', {
   description:
     'Verify the signature of a signed template file. ' +
     'Returns the authenticated template content if valid. ' +
-    'If SIG_VERIFY env var is set, verifies those files (comma-separated). ' +
-    'Otherwise uses the file parameter.',
+    'If SIG_VERIFY env var is set, verifies those files and ignores the file parameter. ' +
+    'Otherwise falls back to the file parameter.',
   inputSchema: {
     file: z.string().optional().describe(
       'File path to verify (relative to project root). ' +
-      'If omitted, reads from SIG_VERIFY env var.'
+      'Ignored when SIG_VERIFY env var is set.'
     ),
   },
 }, async (args): Promise<{ content: { type: 'text'; text: string }[] }> => {
   const projectRoot = await findProjectRoot();
 
+  // SIG_VERIFY takes precedence — orchestrator controls what gets verified
   const envFiles = process.env.SIG_VERIFY;
-  const files = args.file
-    ? [args.file]
-    : envFiles
-      ? envFiles.split(',').map((f) => f.trim()).filter(Boolean)
+  const files = envFiles
+    ? envFiles.split(',').map((f) => f.trim()).filter(Boolean)
+    : args.file
+      ? [args.file]
       : [];
 
   if (files.length === 0) {

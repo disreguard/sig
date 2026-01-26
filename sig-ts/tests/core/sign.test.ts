@@ -7,15 +7,13 @@ import { initProject } from '../../src/core/config.js';
 
 describe('signFile', () => {
   let projectRoot: string;
+  const testContent = 'Hello {{ name }}, welcome to {{ place }}.\n';
 
   beforeEach(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'sig-test-'));
     await initProject(projectRoot);
     await mkdir(join(projectRoot, 'prompts'), { recursive: true });
-    await writeFile(
-      join(projectRoot, 'prompts', 'test.txt'),
-      'Hello {{ name }}, welcome to {{ place }}.\n'
-    );
+    await writeFile(join(projectRoot, 'prompts', 'test.txt'), testContent);
   });
 
   afterEach(async () => {
@@ -30,18 +28,21 @@ describe('signFile', () => {
     expect(sig.algorithm).toBe('sha256');
     expect(sig.signedBy).toBe('alice');
     expect(sig.signedAt).toBeTruthy();
-    expect(sig.contentLength).toBe(42);
+    expect(sig.contentLength).toBe(Buffer.byteLength(testContent, 'utf8'));
   });
 
-  it('stores signature file in .sig/sigs/', async () => {
+  it('stores signature and content in .sig/sigs/', async () => {
     await signFile(projectRoot, 'prompts/test.txt', { identity: 'bob' });
 
     const sigPath = join(projectRoot, '.sig', 'sigs', 'prompts', 'test.txt.sig.json');
     const raw = await readFile(sigPath, 'utf8');
     const stored = JSON.parse(raw);
-
     expect(stored.file).toBe('prompts/test.txt');
     expect(stored.signedBy).toBe('bob');
+
+    const contentPath = join(projectRoot, '.sig', 'sigs', 'prompts', 'test.txt.sig.content');
+    const content = await readFile(contentPath, 'utf8');
+    expect(content).toBe(testContent);
   });
 
   it('records template engine from config', async () => {
@@ -74,5 +75,18 @@ describe('signFile', () => {
     const sig2 = await signFile(projectRoot, 'prompts/test.txt');
 
     expect(sig1.hash).toBe(sig2.hash);
+  });
+
+  it('rejects paths that escape project root', async () => {
+    await expect(signFile(projectRoot, '../../../etc/passwd'))
+      .rejects.toThrow(/escapes project root/i);
+  });
+
+  it('uses byte length for non-ASCII content', async () => {
+    await writeFile(join(projectRoot, 'prompts', 'emoji.txt'), 'Hello 🌍\n');
+    const sig = await signFile(projectRoot, 'prompts/emoji.txt');
+
+    // '🌍' is 4 bytes in UTF-8, so "Hello 🌍\n" = 11 bytes, not 9 JS chars
+    expect(sig.contentLength).toBe(Buffer.byteLength('Hello 🌍\n', 'utf8'));
   });
 });
