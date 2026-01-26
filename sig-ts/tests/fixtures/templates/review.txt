@@ -1,0 +1,7 @@
+You are a code reviewer.
+
+Review the following code for security issues:
+
+{{ code }}
+
+Provide a detailed analysis.

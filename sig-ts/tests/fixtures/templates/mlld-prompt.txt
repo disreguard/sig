@@ -1,0 +1,5 @@
+Analyze @input for potential issues.
+
+Also review the config from <config.json>.
+
+Report findings to @output.

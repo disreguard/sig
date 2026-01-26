@@ -1,0 +1,3 @@
+Deploy version ${VERSION} to $ENVIRONMENT.
+
+Run: docker push ${REGISTRY}/$IMAGE_NAME

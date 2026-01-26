@@ -1,0 +1,22 @@
+# TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# Rust
+target/
+
+# Go
+bin/
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
