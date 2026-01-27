@@ -22,7 +22,29 @@ Match? → Instructions are authentic. Proceed.
 
 The key: the **orchestrator** controls what gets verified (via `SIG_VERIFY` env var), not the agent. The agent can't be tricked into verifying the wrong thing or skipping verification.
 
-## Usage
+## Install
+
+### TypeScript / Node.js
+
+```bash
+npm install @disreguard/sig
+```
+
+Requires Node.js >= 18. See [sig-ts/](sig-ts/) for details.
+
+### Python
+
+```bash
+pip install disreguard-sig
+```
+
+Requires Python >= 3.11. See [sig-py/](sig-py/) for details.
+
+Both implementations produce identical `.sig/` directories — a file signed by one can be verified by the other.
+
+## CLI
+
+Both implementations provide the same CLI commands:
 
 ```bash
 # Initialize a project
@@ -41,14 +63,16 @@ sig verify prompts/review.txt
 # Check status of all signed files
 sig check
 
-# Modify a file, then check again
-sig check
-# → MODIFIED  prompts/review.txt
+# List all signed files
+sig list
+
+# Show audit log
+sig audit
 ```
 
 ## MCP Server
 
-sig ships an MCP server so agents can verify instructions in-band:
+Both implementations ship an MCP server (`sig-mcp`) so agents can verify instructions in-band:
 
 ```json
 {
@@ -69,7 +93,7 @@ The agent calls the `verify` tool and gets back the authenticated template conte
 
 | Tool | Description |
 |------|-------------|
-| `verify` | Verify a template signature. When `SIG_VERIFY` env var is set, verifies those files and ignores any `file` parameter. Falls back to `file` parameter otherwise. |
+| `verify` | Verify a template signature. When `SIG_VERIFY` env var is set, verifies those files and ignores any `file` parameter. |
 | `list_signed` | List all signed files and their status. |
 | `check` | Check if a specific file is signed or modified. |
 
@@ -138,14 +162,12 @@ For any agent framework:
 
 ## Implementations
 
-| Directory | Language | Status |
-|-----------|----------|--------|
-| `sig-ts` | TypeScript | Complete |
-| `sig-py` | Python | Planned |
-| `sig-go` | Go | Planned |
-| `sig-rs` | Rust | Planned |
+| Directory | Language | Package | Status |
+|-----------|----------|---------|--------|
+| [`sig-ts/`](sig-ts/) | TypeScript | `@disreguard/sig` | Complete |
+| [`sig-py/`](sig-py/) | Python | `disreguard-sig` | Complete |
 
-All implementations share the same `.sig/` storage format, CLI interface, and MCP server protocol.
+All implementations share the same `.sig/` storage format, CLI interface, and MCP server protocol. A file signed by any implementation can be verified by any other.
 
 ## License
 
