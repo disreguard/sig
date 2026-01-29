@@ -71,3 +71,29 @@ export interface CheckResult {
   status: 'signed' | 'modified' | 'unsigned' | 'corrupted';
   signature?: Signature;
 }
+
+// Content signing types (for runtime/in-memory signing)
+
+export interface ContentSignature {
+  id: string;
+  hash: string;
+  algorithm: 'sha256';
+  signedBy: string;
+  signedAt: string;
+  contentLength: number;
+  metadata?: Record<string, string>;
+}
+
+export interface SignContentOptions {
+  id: string;
+  identity: string;
+  metadata?: Record<string, string>;
+}
+
+export interface ContentVerifyResult {
+  verified: boolean;
+  id: string;
+  content?: string;
+  signature?: ContentSignature;
+  error?: string;
+}

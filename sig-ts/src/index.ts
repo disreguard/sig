@@ -7,6 +7,9 @@ export type {
   VerifyResult,
   AuditEntry,
   CheckResult,
+  ContentSignature,
+  SignContentOptions,
+  ContentVerifyResult,
 } from './types.js';
 
 export { sha256, formatHash, parseHash } from './core/hash.js';
@@ -17,3 +20,4 @@ export { verifyFile, checkFile, checkAllSigned } from './core/verify.js';
 export { logEvent, readAuditLog } from './core/audit.js';
 export { resolveContainedPath } from './core/paths.js';
 export { ENGINES, extractPlaceholders, getEngineNames } from './templates/engines.js';
+export { signContent, verifyContent, ContentStore, createContentStore } from './core/content.js';

@@ -102,6 +102,36 @@ class AuditEntry:
     detail: str | None = None
 
 
+# Content signing types (for runtime/in-memory signing)
+
+
+@dataclass
+class ContentSignature:
+    id: str
+    hash: str
+    algorithm: str
+    signed_by: str
+    signed_at: str
+    content_length: int
+    metadata: dict[str, str] | None = None
+
+
+@dataclass
+class SignContentOptions:
+    id: str
+    identity: str
+    metadata: dict[str, str] | None = None
+
+
+@dataclass
+class ContentVerifyResult:
+    verified: bool
+    id: str
+    content: str | None = None
+    signature: ContentSignature | None = None
+    error: str | None = None
+
+
 def to_json_dict(obj: object) -> dict | list:
     """Convert a dataclass instance to a camelCase dict suitable for JSON serialization.
     Removes keys with None values. Handles nested dataclasses."""
