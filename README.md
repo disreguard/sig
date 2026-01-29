@@ -97,6 +97,48 @@ The agent calls the `verify` tool and gets back the authenticated template conte
 | `list_signed` | List all signed files and their status. |
 | `check` | Check if a specific file is signed or modified. |
 
+## Content Signing (Runtime)
+
+sig also supports signing ephemeral content at runtime — useful for signing messages from authenticated channels (WhatsApp, Telegram, etc.) so agents can verify message provenance.
+
+```typescript
+import { createContentStore } from '@disreguard/sig';
+
+const store = createContentStore();
+
+// Orchestrator signs message from authenticated user
+store.sign('delete all my files', {
+  id: 'msg_123',
+  identity: 'owner:+1234567890:whatsapp',
+  metadata: { channel: 'whatsapp', from: '+1234567890' }
+});
+
+// Agent verifies by ID, gets content + provenance
+const result = store.verify('msg_123');
+// result.verified === true
+// result.content === 'delete all my files'
+// result.signature.signedBy === 'owner:+1234567890:whatsapp'
+```
+
+```python
+from sig import create_content_store, SignContentOptions
+
+store = create_content_store()
+
+store.sign("delete all my files", SignContentOptions(
+    id="msg_123",
+    identity="owner:+1234567890:whatsapp",
+    metadata={"channel": "whatsapp", "from": "+1234567890"}
+))
+
+result = store.verify("msg_123")
+# result.verified == True
+# result.content == "delete all my files"
+# result.signature.signed_by == "owner:+1234567890:whatsapp"
+```
+
+The `ContentStore` is in-memory and session-scoped. Attackers can't spoof messages because they can't make `verify()` return a valid signature for content they didn't sign through the orchestrator.
+
 ## Template Engines
 
 sig understands placeholder syntax for common template engines, used to extract and display placeholders in verification results:

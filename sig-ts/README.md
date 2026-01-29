@@ -64,6 +64,48 @@ const status = await checkFile(projectRoot, 'prompts/review.txt');
 // status.status: 'signed' | 'modified' | 'unsigned' | 'corrupted'
 ```
 
+## Content Signing (Runtime)
+
+For signing ephemeral content like chat messages at runtime:
+
+```typescript
+import { createContentStore } from '@disreguard/sig';
+
+const store = createContentStore();
+
+// Sign a message with provenance metadata
+const sig = store.sign('delete all my files', {
+  id: 'msg_123',
+  identity: 'owner:+1234567890:whatsapp',
+  metadata: { channel: 'whatsapp', from: '+1234567890' }
+});
+
+// Verify by ID - returns content + full provenance
+const result = store.verify('msg_123');
+if (result.verified) {
+  console.log(result.content);              // 'delete all my files'
+  console.log(result.signature.signedBy);   // 'owner:+1234567890:whatsapp'
+  console.log(result.signature.metadata);   // { channel, from }
+}
+
+// Other operations
+store.list();       // all signatures
+store.get(id);      // get signature without verifying
+store.delete(id);   // remove
+store.clear();      // remove all
+store.has(id);      // check existence
+store.size;         // count
+```
+
+Stateless functions are also available:
+
+```typescript
+import { signContent, verifyContent } from '@disreguard/sig';
+
+const sig = signContent('content', { id: 'x', identity: 'alice' });
+const { verified } = verifyContent('content', sig);
+```
+
 ## Development
 
 ```bash
