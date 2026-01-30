@@ -1,15 +1,15 @@
 {
   "name": "@disreguard/sig",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Sign and verify prompt templates and tool definitions for AI agent security",
   "type": "module",
   "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
+      "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
   },
