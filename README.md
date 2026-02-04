@@ -6,7 +6,7 @@ Sign and verify prompt templates so AI agents can confirm their instructions are
 
 Prompt injection can manipulate what an LLM *decides* to do. If an attacker injects "ignore previous instructions" into data an agent processes, the agent may comply. No amount of prompt engineering reliably prevents this.
 
-## The Insight
+## Mitigation
 
 sig signs the *template* (your instructions with placeholders intact), not the interpolated result. When an agent verifies, it gets back the stored signed content and can compare it to what it was told. If they match, the instructions haven't been tampered with.
 
