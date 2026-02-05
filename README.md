@@ -4,7 +4,7 @@ Sign and verify prompt templates so AI agents can confirm their instructions are
 
 ## The Problem
 
-Prompt injection can manipulate what an LLM *decides* to do. If an attacker injects "ignore previous instructions" into data an agent processes, the agent may comply. No amount of prompt engineering reliably prevents this.
+Prompt injection can manipulate what an LLM *decides* to do. If an attacker injects "disregard previous instructions" into data an agent processes, the agent may comply. No amount of prompt engineering reliably prevents this.
 
 At the core, the problem arises from the inability to add authoritative texture to plain text. All text is text to the model.
 
