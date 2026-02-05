@@ -10,9 +10,9 @@ At the core, the problem arises from the inability to add authoritative texture 
 
 ## Defense
 
-By signing instructions, we can create an explicit trust boundary the agent can check: verified instructions vs. unsigned text. By giving the agent a tool to more meaningfully scrutinizing instructions, we increase the odds they make better decisions and avoid being tricked.
+By signing instructions, we can create an explicit trust boundary the agent can check: verified instructions vs. unsigned text. This gives the agent a way to verify which instructions are authentic, increasing the odds it treats unsigned text as untrusted data and avoids being tricked.
 
-sig signs the *template* (with placeholders intact), not the interpolated result. When an agent verifies, it gets back the stored signed content and can compare it.
+sig signs the *template* (with placeholders intact), not the interpolated result. When an agent verifies, it gets back the stored signed content and can compare it to the instructions it was given.
 
 ```
 Developer signs:     "Review {{code}} for security issues."
@@ -43,7 +43,7 @@ The **orchestrator** controls what gets verified (via `SIG_VERIFY` env var), not
 
 Defense in depth remains essential for mitigating the potential impacts of prompt injection.
 
-Signing gives the model a reliable anchor, but it doesn’t automatically prevent it from being misled by unsigned text if the verified instructions are permissive or underspecified. There is no purely prompt-level silver bullet for prompt injection, but `sig` adds a clear trust boundary: verified instructions vs. untrusted data.
+Signing gives the model a reliable anchor, but it doesn’t automatically prevent it from being misled by unsigned text if the verified instructions are permissive or underspecified. There is no purely prompt-level silver bullet for prompt injection, but `sig` reinforces a clear trust boundary.
 
 In practice, `sig` is most effective when paired with a pre-action audit step for sensitive tool calls: explicitly extract “instructions” found in unsigned text, evaluate them against a fixed policy, and require human approval (or deny) when they imply destructive actions, exfiltration, or privilege escalation.
 
