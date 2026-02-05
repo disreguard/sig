@@ -39,11 +39,13 @@ Trigger an audit before any actions which could be destructive, risk exfiltratio
 
 The **orchestrator** controls what gets verified (via `SIG_VERIFY` env var), not the agent. The agent can't be tricked into verifying the wrong thing or skipping verification.
 
-## One More Arrow
+## One More Layer
 
-Signing gives the model a reliable anchor, but it doesn’t automatically prevent it from being misled by unsigned text if the verified instructions are permissive/vague.
+Defense in depth remains essential for mitigating the potential impacts of prompt injection.
 
-Prompt injection remains unsolved and theoretically unsolvable, but `sig` provides a useful tool in defense, particularly when combined with an audit step prior to critical tool calls which focuses on extracting and analyzing instructions from unsigned text.
+Signing gives the model a reliable anchor, but it doesn’t automatically prevent it from being misled by unsigned text if the verified instructions are permissive or underspecified. There is no purely prompt-level silver bullet for prompt injection, but `sig` adds a clear trust boundary: verified instructions vs. untrusted data.
+
+In practice, `sig` is most effective when paired with a pre-action audit step for sensitive tool calls: explicitly extract “instructions” found in unsigned text, evaluate them against a fixed policy, and require human approval (or deny) when they imply destructive actions, exfiltration, or privilege escalation.
 
 ## Install
 
