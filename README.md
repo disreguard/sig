@@ -39,6 +39,12 @@ Trigger an audit before any actions which could be destructive, risk exfiltratio
 
 The **orchestrator** controls what gets verified (via `SIG_VERIFY` env var), not the agent. The agent can't be tricked into verifying the wrong thing or skipping verification.
 
+## One More Arrow
+
+Signing gives the model a reliable anchor, but it doesn’t automatically prevent it from being misled by unsigned text if the verified instructions are permissive/vague.
+
+Prompt injection remains unsolved and theoretically unsolvable, but `sig` provides a useful tool in defense, particularly when combined with an audit step prior to critical tool calls which focuses on extracting and analyzing instructions from unsigned text.
+
 ## Install
 
 ### TypeScript / Node.js
