@@ -6,6 +6,9 @@ import { checkCommand } from './check.js';
 import { listCommand } from './list.js';
 import { statusCommand } from './status.js';
 import { auditCommand } from './audit.js';
+import { updateCommand } from './update.js';
+import { chainCommand } from './chain.js';
+import { policyCommand } from './policy.js';
 
 const program = new Command()
   .name('sig')
@@ -67,6 +70,40 @@ program
   .argument('[file]', 'Filter to specific file')
   .action(async (file?: string) => {
     await auditCommand(file);
+  });
+
+program
+  .command('update')
+  .description('Update a mutable signed file (reads new content from stdin)')
+  .argument('<file>', 'File to update')
+  .requiredOption('--by <identity>', 'Identity authorizing this update')
+  .requiredOption('--reason <reason>', 'Reason for the update')
+  .requiredOption('--source-type <type>', 'Source type (signed_message or signed_template)')
+  .option('--source-id <id>', 'ID of the signed source')
+  .action(async (file: string, opts) => {
+    await updateCommand(file, {
+      by: opts.by,
+      reason: opts.reason,
+      sourceType: opts.sourceType,
+      sourceId: opts.sourceId,
+    });
+  });
+
+program
+  .command('chain')
+  .description('Show the update chain for a mutable file')
+  .argument('<file>', 'File to show chain for')
+  .option('--verify', 'Validate chain integrity')
+  .action(async (file: string, opts) => {
+    await chainCommand(file, { verify: opts.verify });
+  });
+
+program
+  .command('policy')
+  .description('Show file policy')
+  .argument('[file]', 'File to check policy for (shows all if omitted)')
+  .action(async (file?: string) => {
+    await policyCommand(file);
   });
 
 program.parse();

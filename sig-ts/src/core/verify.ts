@@ -6,6 +6,7 @@ import { logEvent } from './audit.js';
 import { loadConfig, sigDir } from './config.js';
 import { resolveContainedPath } from './paths.js';
 import { extractPlaceholders } from '../templates/engines.js';
+import { validateChain, getChainHead } from './chain.js';
 import type { VerifyResult, CheckResult, TemplateEngine } from '../types.js';
 
 export async function verifyFile(
@@ -81,6 +82,19 @@ export async function verifyFile(
     ? extractPlaceholders(signedContent, engines, config.templates?.custom)
     : undefined;
 
+  // Check for update chain
+  const chainValidation = await validateChain(dir, relPath);
+  let chain: VerifyResult['chain'] = undefined;
+  if (chainValidation.length > 0) {
+    const head = await getChainHead(dir, relPath);
+    chain = {
+      length: chainValidation.length,
+      valid: chainValidation.valid,
+      lastUpdatedBy: head?.signedBy,
+      lastUpdatedAt: head?.signedAt,
+    };
+  }
+
   return {
     verified,
     file: relPath,
@@ -90,6 +104,7 @@ export async function verifyFile(
     signedAt: sig.signedAt,
     error: verified ? undefined : 'Content has been modified since signing',
     placeholders: placeholders?.length ? placeholders : undefined,
+    chain,
   };
 }
 

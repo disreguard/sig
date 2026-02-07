@@ -10,6 +10,11 @@ export type {
   ContentSignature,
   SignContentOptions,
   ContentVerifyResult,
+  FilePolicy,
+  ChainEntry,
+  UpdateProvenance,
+  UpdateAndSignOptions,
+  UpdateResult,
 } from './types.js';
 
 export { sha256, formatHash, parseHash } from './core/hash.js';
@@ -21,3 +26,6 @@ export { logEvent, readAuditLog } from './core/audit.js';
 export { resolveContainedPath } from './core/paths.js';
 export { ENGINES, extractPlaceholders, getEngineNames } from './templates/engines.js';
 export { signContent, verifyContent, ContentStore, createContentStore } from './core/content.js';
+export { resolveFilePolicy, matchesFilePattern } from './core/policy.js';
+export { updateAndSign } from './core/update.js';
+export { appendChainEntry, readChain, getChainHead, validateChain } from './core/chain.js';
