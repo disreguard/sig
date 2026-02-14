@@ -9,7 +9,8 @@ from ..types import Signature
 from .hash import sha256, format_hash
 from .store import store_sig
 from .audit import log_event
-from .config import load_config, sig_dir
+from .config import load_config
+from .fs import SigFS, create_sig_context
 from .paths import resolve_contained_path
 
 
@@ -19,11 +20,13 @@ def sign_file(
     *,
     identity: str | None = None,
     engine: str | None = None,
+    fs: SigFS | None = None,
 ) -> Signature:
-    config = load_config(project_root)
+    ctx = create_sig_context(project_root, fs=fs)
+    config = load_config(project_root, fs=ctx.fs)
     rel_path = resolve_contained_path(project_root, file_path)
     abs_path = Path(project_root) / rel_path
-    content = abs_path.read_text("utf-8")
+    content = ctx.fs.read_file(str(abs_path))
     hex_digest = sha256(content)
 
     resolved_identity = (
@@ -50,10 +53,9 @@ def sign_file(
     if engine_name:
         sig.template_engine = engine_name
 
-    sdir = sig_dir(project_root)
-    store_sig(sdir, sig, content)
+    store_sig(ctx, sig, content)
     log_event(
-        sdir,
+        ctx,
         event="sign",
         file=rel_path,
         hash=sig.hash,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from typing import Literal
 
 TemplateEngine = Literal[
@@ -124,6 +124,13 @@ class SignContentOptions:
 
 
 @dataclass
+class PersistentSignOptions:
+    id: str
+    identity: str | None = None
+    metadata: dict[str, str] | None = None
+
+
+@dataclass
 class ContentVerifyResult:
     verified: bool
     id: str
@@ -155,3 +162,12 @@ def signature_from_dict(d: dict) -> Signature:
         py_key = _CAMEL_TO_SNAKE.get(key, key)
         kwargs[py_key] = value
     return Signature(**kwargs)
+
+
+def content_signature_from_dict(d: dict) -> ContentSignature:
+    """Convert a camelCase JSON dict to a ContentSignature dataclass."""
+    kwargs = {}
+    for key, value in d.items():
+        py_key = _CAMEL_TO_SNAKE.get(key, key)
+        kwargs[py_key] = value
+    return ContentSignature(**kwargs)

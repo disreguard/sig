@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+import os
 from typing import NamedTuple
 
 from ..types import Signature, to_json_dict, signature_from_dict
+from .fs import SigContext, to_sig_context
 
 SIGS_DIR = "sigs"
 SIG_EXT = ".sig.json"
 CONTENT_EXT = ".sig.content"
 
 
-def _sig_path(sig_dir: str, file_path: str) -> Path:
-    return Path(sig_dir) / SIGS_DIR / (file_path + SIG_EXT)
+def _sig_path(ctx: SigContext, file_path: str) -> str:
+    return os.path.join(ctx.sig_dir, SIGS_DIR, file_path + SIG_EXT)
 
 
-def _content_path(sig_dir: str, file_path: str) -> Path:
-    return Path(sig_dir) / SIGS_DIR / (file_path + CONTENT_EXT)
+def _content_path(ctx: SigContext, file_path: str) -> str:
+    return os.path.join(ctx.sig_dir, SIGS_DIR, file_path + CONTENT_EXT)
 
 
 class LoadSigResult(NamedTuple):
@@ -24,23 +25,25 @@ class LoadSigResult(NamedTuple):
     error: str | None
 
 
-def store_sig(sig_dir: str, signature: Signature, content: str) -> None:
+def store_sig(ctx_or_sig_dir: SigContext | str, signature: Signature, content: str) -> None:
     """Write both .sig.json and .sig.content files."""
-    meta_path = _sig_path(sig_dir, signature.file)
-    meta_path.parent.mkdir(parents=True, exist_ok=True)
-    meta_path.write_text(
+    ctx = to_sig_context(ctx_or_sig_dir)
+    meta_path = _sig_path(ctx, signature.file)
+    ctx.fs.mkdir(os.path.dirname(meta_path), parents=True)
+    ctx.fs.write_file(
+        meta_path,
         json.dumps(to_json_dict(signature), indent=2) + "\n",
-        encoding="utf-8",
     )
-    _content_path(sig_dir, signature.file).write_text(content, encoding="utf-8")
+    ctx.fs.write_file(_content_path(ctx, signature.file), content)
 
 
-def load_sig(sig_dir: str, file_path: str) -> LoadSigResult:
+def load_sig(ctx_or_sig_dir: SigContext | str, file_path: str) -> LoadSigResult:
     """Load a signature. Returns (signature, error) where error is None, 'not-found', or 'corrupted'."""
-    path = _sig_path(sig_dir, file_path)
+    ctx = to_sig_context(ctx_or_sig_dir)
+    path = _sig_path(ctx, file_path)
     try:
-        raw = path.read_text("utf-8")
-    except (FileNotFoundError, OSError):
+        raw = ctx.fs.read_file(path)
+    except Exception:
         return LoadSigResult(signature=None, error="not-found")
     try:
         d = json.loads(raw)
@@ -49,35 +52,53 @@ def load_sig(sig_dir: str, file_path: str) -> LoadSigResult:
         return LoadSigResult(signature=None, error="corrupted")
 
 
-def load_signed_content(sig_dir: str, file_path: str) -> str | None:
+def load_signed_content(ctx_or_sig_dir: SigContext | str, file_path: str) -> str | None:
     """Load the stored signed content, or None if missing."""
+    ctx = to_sig_context(ctx_or_sig_dir)
     try:
-        return _content_path(sig_dir, file_path).read_text("utf-8")
-    except (FileNotFoundError, OSError):
+        return ctx.fs.read_file(_content_path(ctx, file_path))
+    except Exception:
         return None
 
 
-def delete_sig(sig_dir: str, file_path: str) -> None:
+def delete_sig(ctx_or_sig_dir: SigContext | str, file_path: str) -> None:
     """Delete both signature and content files. Ignores missing files."""
-    for path in (_sig_path(sig_dir, file_path), _content_path(sig_dir, file_path)):
+    ctx = to_sig_context(ctx_or_sig_dir)
+    for path in (_sig_path(ctx, file_path), _content_path(ctx, file_path)):
         try:
-            path.unlink()
-        except (FileNotFoundError, OSError):
+            ctx.fs.unlink(path)
+        except Exception:
             pass
 
 
-def list_sigs(sig_dir: str) -> list[Signature]:
+def list_sigs(ctx_or_sig_dir: SigContext | str) -> list[Signature]:
     """Walk .sig/sigs/ and load all valid .sig.json files."""
-    sigs_root = Path(sig_dir) / SIGS_DIR
-    if not sigs_root.exists():
+    ctx = to_sig_context(ctx_or_sig_dir)
+    sigs_root = os.path.join(ctx.sig_dir, SIGS_DIR)
+    if not ctx.fs.exists(sigs_root):
         return []
 
     sigs: list[Signature] = []
-    for path in sigs_root.rglob("*" + SIG_EXT):
+    _walk_dir(ctx, sigs_root, sigs)
+    return sigs
+
+
+def _walk_dir(ctx: SigContext, dir_path: str, sigs: list[Signature]) -> None:
+    try:
+        entries = ctx.fs.readdir(dir_path)
+    except Exception:
+        return
+
+    for entry in entries:
+        full_path = os.path.join(dir_path, entry.name)
+        if entry.is_dir:
+            _walk_dir(ctx, full_path, sigs)
+            continue
+        if not full_path.endswith(SIG_EXT):
+            continue
         try:
-            raw = path.read_text("utf-8")
+            raw = ctx.fs.read_file(full_path)
             d = json.loads(raw)
             sigs.append(signature_from_dict(d))
         except Exception:
             pass
-    return sigs

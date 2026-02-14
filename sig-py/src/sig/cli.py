@@ -15,7 +15,7 @@ from .templates.engines import get_engine_names
 
 
 @click.group()
-@click.version_option("0.1.0")
+@click.version_option("0.3.0")
 def cli():
     """Sign and verify prompt templates for AI agent security."""
 

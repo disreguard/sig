@@ -367,7 +367,7 @@ For any agent framework:
 
 Both implementations share the file-signing layout in `.sig/sigs/`, the CLI surface, and the MCP server protocol for file verification.
 
-`PersistentContentStore` and `.sig/content/` are implemented in TypeScript (`sig-ts`). Python (`sig-py`) does not include this content-signing store.
+`PersistentContentStore` and `.sig/content/` are implemented in both TypeScript (`sig-ts`) and Python (`sig-py`).
 
 ## License
 

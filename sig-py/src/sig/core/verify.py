@@ -2,21 +2,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..types import VerifyResult, CheckResult, Signature
+from ..types import VerifyResult, CheckResult
 from .hash import sha256, format_hash
 from .store import load_sig, load_signed_content, list_sigs
 from .audit import log_event
-from .config import load_config, sig_dir
+from .config import load_config
+from .fs import SigFS, create_sig_context
 from .paths import resolve_contained_path
 from ..templates.engines import extract_placeholders
 
 
-def verify_file(project_root: str, file_path: str) -> VerifyResult:
-    config = load_config(project_root)
+def verify_file(
+    project_root: str,
+    file_path: str,
+    *,
+    fs: SigFS | None = None,
+) -> VerifyResult:
+    ctx = create_sig_context(project_root, fs=fs)
+    config = load_config(project_root, fs=ctx.fs)
     rel_path = resolve_contained_path(project_root, file_path)
-    sdir = sig_dir(project_root)
 
-    result = load_sig(sdir, rel_path)
+    result = load_sig(ctx, rel_path)
     sig = result.signature
     load_error = result.error
 
@@ -26,23 +32,23 @@ def verify_file(project_root: str, file_path: str) -> VerifyResult:
             if load_error == "corrupted"
             else "No signature found"
         )
-        log_event(sdir, event="verify-fail", file=rel_path, detail=detail)
+        log_event(ctx, event="verify-fail", file=rel_path, detail=detail)
         return VerifyResult(verified=False, file=rel_path, error=detail)
 
     try:
-        content = (Path(project_root) / rel_path).read_text("utf-8")
-    except FileNotFoundError:
-        log_event(sdir, event="verify-fail", file=rel_path, detail="File not found")
+        content = ctx.fs.read_file(str(Path(project_root) / rel_path))
+    except Exception:
+        log_event(ctx, event="verify-fail", file=rel_path, detail="File not found")
         return VerifyResult(verified=False, file=rel_path, error="File not found")
 
     current_hash = format_hash(sha256(content))
     verified = current_hash == sig.hash
 
     if verified:
-        log_event(sdir, event="verify", file=rel_path, hash=current_hash)
+        log_event(ctx, event="verify", file=rel_path, hash=current_hash)
     else:
         log_event(
-            sdir,
+            ctx,
             event="verify-fail",
             file=rel_path,
             hash=current_hash,
@@ -51,7 +57,7 @@ def verify_file(project_root: str, file_path: str) -> VerifyResult:
 
     signed_content: str | None = None
     if verified:
-        signed_content = load_signed_content(sdir, rel_path) or content
+        signed_content = load_signed_content(ctx, rel_path) or content
 
     engines: list[str] | None = None
     if config.templates and config.templates.engine:
@@ -81,11 +87,16 @@ def verify_file(project_root: str, file_path: str) -> VerifyResult:
     )
 
 
-def check_file(project_root: str, file_path: str) -> CheckResult:
+def check_file(
+    project_root: str,
+    file_path: str,
+    *,
+    fs: SigFS | None = None,
+) -> CheckResult:
+    ctx = create_sig_context(project_root, fs=fs)
     rel_path = resolve_contained_path(project_root, file_path)
-    sdir = sig_dir(project_root)
 
-    result = load_sig(sdir, rel_path)
+    result = load_sig(ctx, rel_path)
     sig = result.signature
     load_error = result.error
 
@@ -94,8 +105,8 @@ def check_file(project_root: str, file_path: str) -> CheckResult:
         return CheckResult(file=rel_path, status=status)
 
     try:
-        content = (Path(project_root) / rel_path).read_text("utf-8")
-    except FileNotFoundError:
+        content = ctx.fs.read_file(str(Path(project_root) / rel_path))
+    except Exception:
         return CheckResult(file=rel_path, status="modified", signature=sig)
 
     current_hash = format_hash(sha256(content))
@@ -105,11 +116,11 @@ def check_file(project_root: str, file_path: str) -> CheckResult:
     return CheckResult(file=rel_path, status="modified", signature=sig)
 
 
-def check_all_signed(project_root: str) -> list[CheckResult]:
-    sdir = sig_dir(project_root)
-    sigs = list_sigs(sdir)
+def check_all_signed(project_root: str, *, fs: SigFS | None = None) -> list[CheckResult]:
+    ctx = create_sig_context(project_root, fs=fs)
+    sigs = list_sigs(ctx)
     results: list[CheckResult] = []
     for sig in sigs:
-        r = check_file(project_root, sig.file)
+        r = check_file(project_root, sig.file, fs=ctx.fs)
         results.append(r)
     return results

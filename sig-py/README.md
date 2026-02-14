@@ -62,6 +62,28 @@ status = check_file(project_root, "prompts/review.txt")
 # status.status: 'signed' | 'modified' | 'unsigned' | 'corrupted'
 ```
 
+High-level APIs also accept an optional filesystem adapter:
+
+```python
+from sig import PathLibFS, sign_file, verify_file, check_file
+
+fs = PathLibFS()
+sign_file(project_root, "prompts/review.txt", identity="alice", fs=fs)
+verify_file(project_root, "prompts/review.txt", fs=fs)
+check_file(project_root, "prompts/review.txt", fs=fs)
+```
+
+## Filesystem Abstraction
+
+`sig-py` uses a structural `SigFS` protocol for filesystem access. `PathLibFS` is the default implementation, and `create_sig_context()` builds a `SigContext` for lower-level APIs.
+
+```python
+from sig import create_sig_context, PathLibFS, list_sigs
+
+ctx = create_sig_context(project_root, fs=PathLibFS())
+all_signatures = list_sigs(ctx)
+```
+
 ## Content Signing (Runtime)
 
 For signing ephemeral content like chat messages at runtime:
@@ -102,6 +124,44 @@ from sig import sign_content, verify_content, SignContentOptions
 sig = sign_content("content", SignContentOptions(id="x", identity="alice"))
 result = verify_content("content", sig)  # {"verified": True}
 ```
+
+## Persistent Content Store (`.sig/content/`)
+
+For content signatures that persist across processes, use `PersistentContentStore`.
+
+```python
+from sig import (
+    create_sig_context,
+    PersistentContentStore,
+    PersistentSignOptions,
+)
+
+ctx = create_sig_context(project_root)
+store = PersistentContentStore(ctx)
+
+signature = store.sign(
+    "Review @input",
+    options=PersistentSignOptions(id="auditPrompt", identity="security-team"),
+)
+
+verified = store.verify("auditPrompt", detail="directive:verify")
+if verified.verified:
+    print(verified.content)
+    print(verified.signature.signed_by)
+```
+
+Persistent store methods:
+- `sign(content, options=PersistentSignOptions(...))`
+- `verify(id, content=None, detail=None)`
+- `sign_if_changed(content, options=...)`
+- `load(id)`, `load_content(id)`
+- `delete(id)`, `list()`, `has(id)`
+
+Identity fallback for `PersistentSignOptions(identity=None)`:
+- `options.identity`
+- `.sig/config.json` -> `sign.identity`
+- `USER` or `USERNAME` environment variable
+- `"unknown"`
 
 ## Development
 

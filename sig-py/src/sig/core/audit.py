@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
-from pathlib import Path
 
 from ..types import AuditEntry
+from .fs import SigContext, to_sig_context
 
 AUDIT_FILE = "audit.jsonl"
 
 
-def _audit_path(sig_dir: str) -> Path:
-    return Path(sig_dir) / AUDIT_FILE
+def _audit_path(ctx: SigContext) -> str:
+    return os.path.join(ctx.sig_dir, AUDIT_FILE)
 
 
 def _now_iso() -> str:
@@ -19,7 +20,7 @@ def _now_iso() -> str:
 
 
 def log_event(
-    sig_dir: str,
+    ctx_or_sig_dir: SigContext | str,
     *,
     event: str,
     file: str,
@@ -28,8 +29,9 @@ def log_event(
     detail: str | None = None,
 ) -> None:
     """Append one JSON line to the audit log."""
-    path = _audit_path(sig_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    ctx = to_sig_context(ctx_or_sig_dir)
+    path = _audit_path(ctx)
+    ctx.fs.mkdir(os.path.dirname(path), parents=True)
 
     entry: dict = {"ts": _now_iso(), "event": event, "file": file}
     if hash is not None:
@@ -39,16 +41,16 @@ def log_event(
     if detail is not None:
         entry["detail"] = detail
 
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    ctx.fs.append_file(path, json.dumps(entry) + "\n")
 
 
-def read_audit_log(sig_dir: str, file: str | None = None) -> list[AuditEntry]:
+def read_audit_log(ctx_or_sig_dir: SigContext | str, file: str | None = None) -> list[AuditEntry]:
     """Read the audit log, optionally filtering by file. Returns empty list if no log exists."""
-    path = _audit_path(sig_dir)
+    ctx = to_sig_context(ctx_or_sig_dir)
+    path = _audit_path(ctx)
     try:
-        raw = path.read_text("utf-8")
-    except (FileNotFoundError, OSError):
+        raw = ctx.fs.read_file(path)
+    except Exception:
         return []
 
     entries: list[AuditEntry] = []

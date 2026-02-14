@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from ..types import SigConfig, TemplatesConfig, SignConfig
+from .fs import SigFS, PathLibFS
 
 SIG_DIR = ".sig"
 CONFIG_FILE = "config.json"
@@ -17,10 +18,11 @@ def config_path(project_root: str) -> str:
     return str(Path(project_root) / SIG_DIR / CONFIG_FILE)
 
 
-def load_config(project_root: str) -> SigConfig:
+def load_config(project_root: str, *, fs: SigFS | None = None) -> SigConfig:
     """Load config from .sig/config.json. Returns default on any error."""
+    filesystem = fs or PathLibFS()
     try:
-        raw = Path(config_path(project_root)).read_text("utf-8")
+        raw = filesystem.read_file(config_path(project_root))
         d = json.loads(raw)
         config = SigConfig(version=d.get("version", 1))
         if "templates" in d:
@@ -42,8 +44,9 @@ def load_config(project_root: str) -> SigConfig:
         return SigConfig()
 
 
-def save_config(project_root: str, config: SigConfig) -> None:
+def save_config(project_root: str, config: SigConfig, *, fs: SigFS | None = None) -> None:
     """Write config as JSON with 2-space indent + trailing newline."""
+    filesystem = fs or PathLibFS()
     d: dict = {"version": config.version}
     if config.templates is not None:
         t: dict = {}
@@ -66,19 +69,22 @@ def save_config(project_root: str, config: SigConfig) -> None:
         if s:
             d["sign"] = s
 
-    path = Path(config_path(project_root))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
+    path = config_path(project_root)
+    filesystem.mkdir(str(Path(path).parent), parents=True)
+    filesystem.write_file(path, json.dumps(d, indent=2) + "\n")
 
 
 def init_project(
     project_root: str,
     engine: str | list[str] | None = None,
     identity: str | None = None,
+    *,
+    fs: SigFS | None = None,
 ) -> SigConfig:
     """Create .sig/ structure and config."""
+    filesystem = fs or PathLibFS()
     sig = Path(project_root) / SIG_DIR
-    (sig / "sigs").mkdir(parents=True, exist_ok=True)
+    filesystem.mkdir(str(sig / "sigs"), parents=True)
 
     config = SigConfig(version=1)
     if engine is not None:
@@ -86,7 +92,7 @@ def init_project(
     if identity is not None:
         config.sign = SignConfig(identity=identity)
 
-    save_config(project_root, config)
+    save_config(project_root, config, fs=filesystem)
     return config
 
 

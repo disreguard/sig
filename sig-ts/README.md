@@ -64,6 +64,28 @@ const status = await checkFile(projectRoot, 'prompts/review.txt');
 // status.status: 'signed' | 'modified' | 'unsigned' | 'corrupted'
 ```
 
+High-level APIs also accept an optional filesystem adapter:
+
+```typescript
+import { signFile, verifyFile, checkFile, NodeFS } from '@disreguard/sig';
+
+const fs = new NodeFS();
+await signFile(projectRoot, 'prompts/review.txt', { identity: 'alice', fs });
+await verifyFile(projectRoot, 'prompts/review.txt', { fs });
+await checkFile(projectRoot, 'prompts/review.txt', { fs });
+```
+
+## Filesystem Abstraction
+
+`sig-ts` uses `SigFS` + `SigContext` for filesystem access. `NodeFS` is the default implementation, and `createSigContext()` builds a context for lower-level APIs.
+
+```typescript
+import { createSigContext, listSigs } from '@disreguard/sig';
+
+const ctx = createSigContext(projectRoot);
+const allSignatures = await listSigs(ctx);
+```
+
 ## Content Signing (Runtime)
 
 For signing ephemeral content like chat messages at runtime:
@@ -105,6 +127,44 @@ import { signContent, verifyContent } from '@disreguard/sig';
 const sig = signContent('content', { id: 'x', identity: 'alice' });
 const { verified } = verifyContent('content', sig);
 ```
+
+## Persistent Content Store (`.sig/content/`)
+
+For content signatures that persist across processes, use `PersistentContentStore`.
+
+```typescript
+import {
+  createSigContext,
+  PersistentContentStore,
+} from '@disreguard/sig';
+
+const ctx = createSigContext(projectRoot);
+const store = new PersistentContentStore(ctx);
+
+const signature = await store.sign('Review @input', {
+  id: 'auditPrompt',
+  identity: 'security-team',
+});
+
+const verified = await store.verify('auditPrompt', { detail: 'directive:verify' });
+if (verified.verified) {
+  console.log(verified.content);
+  console.log(verified.signature?.signedBy);
+}
+```
+
+Persistent store methods:
+- `sign(content, options)`
+- `verify(id, options?)`
+- `signIfChanged(content, options)`
+- `load(id)`, `loadContent(id)`
+- `delete(id)`, `list()`, `has(id)`
+
+Identity fallback for `PersistentSignOptions.identity`:
+- `options.identity`
+- `.sig/config.json` -> `sign.identity`
+- `process.env.USER` or `process.env.USERNAME`
+- `'unknown'`
 
 ## Development
 
