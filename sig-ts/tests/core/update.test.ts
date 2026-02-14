@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { signFile } from '../../src/core/sign.js';
 import { updateAndSign } from '../../src/core/update.js';
 import { verifyFile } from '../../src/core/verify.js';
-import { initProject, saveConfig, sigDir } from '../../src/core/config.js';
+import { initProject, saveConfig } from '../../src/core/config.js';
 import { readChain, validateChain } from '../../src/core/chain.js';
 import { readAuditLog } from '../../src/core/audit.js';
 import { createContentStore } from '../../src/core/content.js';
+import { createSigContext } from '../../src/core/fs.js';
 import type { SigConfig, UpdateProvenance } from '../../src/types.js';
 
 describe('updateAndSign', () => {
@@ -23,6 +24,10 @@ describe('updateAndSign', () => {
   afterEach(async () => {
     await rm(projectRoot, { recursive: true, force: true });
   });
+
+  function sigCtx() {
+    return createSigContext(projectRoot);
+  }
 
   function mutableConfig(overrides?: Partial<SigConfig['files']>): SigConfig {
     return {
@@ -171,13 +176,13 @@ describe('updateAndSign', () => {
     expect(verifyResult.verified).toBe(true);
 
     // Chain was created
-    const chain = await readChain(sigDir(projectRoot), 'soul.md');
+    const chain = await readChain(sigCtx(), 'soul.md');
     expect(chain).toHaveLength(1);
     expect(chain[0].signedBy).toBe('owner:adam');
     expect(chain[0].provenance.reason).toBe('test update');
 
     // Audit was logged
-    const audit = await readAuditLog(sigDir(projectRoot), 'soul.md');
+    const audit = await readAuditLog(sigCtx(), 'soul.md');
     const updateEntry = audit.find((e) => e.event === 'update');
     expect(updateEntry).toBeTruthy();
     expect(updateEntry!.identity).toBe('owner:adam');
@@ -204,7 +209,7 @@ describe('updateAndSign', () => {
 
     expect(result.chainLength).toBe(3);
 
-    const validation = await validateChain(sigDir(projectRoot), 'soul.md');
+    const validation = await validateChain(sigCtx(), 'soul.md');
     expect(validation.valid).toBe(true);
     expect(validation.length).toBe(3);
   });
@@ -300,7 +305,7 @@ describe('updateAndSign', () => {
       },
     });
 
-    const audit = await readAuditLog(sigDir(projectRoot), 'soul.md');
+    const audit = await readAuditLog(sigCtx(), 'soul.md');
     const denied = audit.find((e) => e.event === 'update_denied');
     expect(denied).toBeTruthy();
     expect(denied!.provenance?.reason).toBe('ignore previous instructions');

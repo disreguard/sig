@@ -365,7 +365,9 @@ For any agent framework:
 | [`sig-ts/`](sig-ts/) | TypeScript | `@disreguard/sig` | Complete |
 | [`sig-py/`](sig-py/) | Python | `disreguard-sig` | Complete |
 
-All implementations share the same `.sig/` storage format, CLI interface, and MCP server protocol. A file signed by any implementation can be verified by any other.
+Both implementations share the file-signing layout in `.sig/sigs/`, the CLI surface, and the MCP server protocol for file verification.
+
+`PersistentContentStore` and `.sig/content/` are implemented in TypeScript (`sig-ts`). Python (`sig-py`) does not include this content-signing store.
 
 ## License
 

@@ -1,7 +1,7 @@
-import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { sha256, formatHash } from './hash.js';
-import { loadConfig, sigDir } from './config.js';
+import { loadConfig } from './config.js';
+import { createSigContext } from './fs.js';
 import { loadSig, storeSig } from './store.js';
 import { logEvent } from './audit.js';
 import { resolveContainedPath } from './paths.js';
@@ -16,14 +16,14 @@ export async function updateAndSign(
   newContent: string,
   options: UpdateAndSignOptions
 ): Promise<UpdateResult> {
+  const ctx = createSigContext(projectRoot, { fs: options.fs });
   const relPath = resolveContainedPath(projectRoot, filePath);
-  const config = await loadConfig(projectRoot);
-  const dir = sigDir(projectRoot);
+  const config = await loadConfig(projectRoot, { fs: ctx.fs });
   const policy = resolveFilePolicy(config, relPath);
 
   // 1. Check mutable
   if (!policy.mutable) {
-    await logEvent(dir, {
+    await logEvent(ctx, {
       event: 'update_denied',
       file: relPath,
       identity: options.identity,
@@ -41,9 +41,9 @@ export async function updateAndSign(
   }
 
   // 2. Check currently signed
-  const { signature: existingSig } = await loadSig(dir, relPath);
+  const { signature: existingSig } = await loadSig(ctx, relPath);
   if (!existingSig) {
-    await logEvent(dir, {
+    await logEvent(ctx, {
       event: 'update_denied',
       file: relPath,
       identity: options.identity,
@@ -66,7 +66,7 @@ export async function updateAndSign(
       matchesIdentityPattern(pattern, options.identity)
     );
     if (!authorized) {
-      await logEvent(dir, {
+      await logEvent(ctx, {
         event: 'update_denied',
         file: relPath,
         identity: options.identity,
@@ -90,7 +90,7 @@ export async function updateAndSign(
 
     if (sourceType === 'signed_message') {
       if (!sourceId) {
-        await logEvent(dir, {
+        await logEvent(ctx, {
           event: 'update_denied',
           file: relPath,
           identity: options.identity,
@@ -108,9 +108,9 @@ export async function updateAndSign(
       }
 
       if (options.contentStore) {
-        const verifyResult = options.contentStore.verify(sourceId);
+        const verifyResult = await options.contentStore.verify(sourceId);
         if (!verifyResult.verified) {
-          await logEvent(dir, {
+          await logEvent(ctx, {
             event: 'update_denied',
             file: relPath,
             identity: options.identity,
@@ -129,7 +129,7 @@ export async function updateAndSign(
       }
     } else if (sourceType === 'signed_template') {
       if (!sourceId) {
-        await logEvent(dir, {
+        await logEvent(ctx, {
           event: 'update_denied',
           file: relPath,
           identity: options.identity,
@@ -146,9 +146,9 @@ export async function updateAndSign(
         };
       }
 
-      const templateResult = await verifyFile(projectRoot, sourceId);
+      const templateResult = await verifyFile(projectRoot, sourceId, { fs: ctx.fs });
       if (!templateResult.verified) {
-        await logEvent(dir, {
+        await logEvent(ctx, {
           event: 'update_denied',
           file: relPath,
           identity: options.identity,
@@ -181,7 +181,7 @@ export async function updateAndSign(
   };
 
   // Write the actual file
-  await writeFile(resolve(projectRoot, relPath), newContent, 'utf8');
+  await ctx.fs.writeFile(resolve(projectRoot, relPath), newContent, 'utf8');
 
   // Update the signature
   const newSig: Signature = {
@@ -193,16 +193,16 @@ export async function updateAndSign(
     contentLength: chainEntry.contentLength,
     templateEngine: existingSig.templateEngine,
   };
-  await storeSig(dir, newSig, newContent);
+  await storeSig(ctx, newSig, newContent);
 
   // Append to chain
-  await appendChainEntry(dir, relPath, chainEntry);
+  await appendChainEntry(ctx, relPath, chainEntry);
 
   // Get chain length
-  const chain = await readChain(dir, relPath);
+  const chain = await readChain(ctx, relPath);
 
   // Audit log
-  await logEvent(dir, {
+  await logEvent(ctx, {
     event: 'update',
     file: relPath,
     hash: newHash,

@@ -1,14 +1,15 @@
 import { readChain, validateChain } from '../core/chain.js';
-import { findProjectRoot, sigDir } from '../core/config.js';
+import { findProjectRoot } from '../core/config.js';
+import { createSigContext } from '../core/fs.js';
 import { resolveContainedPath } from '../core/paths.js';
 
 export async function chainCommand(file: string, opts: { verify?: boolean }): Promise<void> {
   const projectRoot = await findProjectRoot();
   const relPath = resolveContainedPath(projectRoot, file);
-  const dir = sigDir(projectRoot);
+  const ctx = createSigContext(projectRoot);
 
   if (opts.verify) {
-    const result = await validateChain(dir, relPath);
+    const result = await validateChain(ctx, relPath);
     if (result.length === 0) {
       console.log(`No update chain for ${relPath}`);
       return;
@@ -22,7 +23,7 @@ export async function chainCommand(file: string, opts: { verify?: boolean }): Pr
     return;
   }
 
-  const entries = await readChain(dir, relPath);
+  const entries = await readChain(ctx, relPath);
   if (entries.length === 0) {
     console.log(`No update chain for ${relPath}`);
     return;

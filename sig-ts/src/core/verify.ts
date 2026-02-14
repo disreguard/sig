@@ -1,29 +1,30 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { sha256, formatHash } from './hash.js';
 import { loadSig, loadSignedContent, listSigs } from './store.js';
 import { logEvent } from './audit.js';
-import { loadConfig, sigDir } from './config.js';
+import { loadConfig } from './config.js';
+import { createSigContext } from './fs.js';
 import { resolveContainedPath } from './paths.js';
 import { extractPlaceholders } from '../templates/engines.js';
 import { validateChain, getChainHead } from './chain.js';
-import type { VerifyResult, CheckResult, TemplateEngine } from '../types.js';
+import type { CheckResult, SigFS, TemplateEngine, VerifyResult } from '../types.js';
 
 export async function verifyFile(
   projectRoot: string,
-  filePath: string
+  filePath: string,
+  options?: { fs?: SigFS }
 ): Promise<VerifyResult> {
-  const config = await loadConfig(projectRoot);
+  const ctx = createSigContext(projectRoot, { fs: options?.fs });
+  const config = await loadConfig(projectRoot, { fs: ctx.fs });
   const relPath = resolveContainedPath(projectRoot, filePath);
-  const dir = sigDir(projectRoot);
 
-  const { signature: sig, error: loadError } = await loadSig(dir, relPath);
+  const { signature: sig, error: loadError } = await loadSig(ctx, relPath);
 
   if (!sig) {
     const detail = loadError === 'corrupted'
       ? 'Signature file is corrupted or tampered with'
       : 'No signature found';
-    await logEvent(dir, {
+    await logEvent(ctx, {
       event: 'verify-fail',
       file: relPath,
       detail,
@@ -37,9 +38,9 @@ export async function verifyFile(
 
   let content: string;
   try {
-    content = await readFile(resolve(projectRoot, relPath), 'utf8');
+    content = await ctx.fs.readFile(resolve(projectRoot, relPath), 'utf8');
   } catch {
-    await logEvent(dir, {
+    await logEvent(ctx, {
       event: 'verify-fail',
       file: relPath,
       detail: 'File not found',
@@ -55,13 +56,13 @@ export async function verifyFile(
   const verified = currentHash === sig.hash;
 
   if (verified) {
-    await logEvent(dir, {
+    await logEvent(ctx, {
       event: 'verify',
       file: relPath,
       hash: currentHash,
     });
   } else {
-    await logEvent(dir, {
+    await logEvent(ctx, {
       event: 'verify-fail',
       file: relPath,
       hash: currentHash,
@@ -71,7 +72,7 @@ export async function verifyFile(
 
   // Return the stored signed content, not the live file
   const signedContent = verified
-    ? (await loadSignedContent(dir, relPath) ?? content)
+    ? (await loadSignedContent(ctx, relPath) ?? content)
     : undefined;
 
   const engines = config.templates?.engine
@@ -83,10 +84,10 @@ export async function verifyFile(
     : undefined;
 
   // Check for update chain
-  const chainValidation = await validateChain(dir, relPath);
+  const chainValidation = await validateChain(ctx, relPath);
   let chain: VerifyResult['chain'] = undefined;
   if (chainValidation.length > 0) {
-    const head = await getChainHead(dir, relPath);
+    const head = await getChainHead(ctx, relPath);
     chain = {
       length: chainValidation.length,
       valid: chainValidation.valid,
@@ -110,12 +111,13 @@ export async function verifyFile(
 
 export async function checkFile(
   projectRoot: string,
-  filePath: string
+  filePath: string,
+  options?: { fs?: SigFS }
 ): Promise<CheckResult> {
+  const ctx = createSigContext(projectRoot, { fs: options?.fs });
   const relPath = resolveContainedPath(projectRoot, filePath);
-  const dir = sigDir(projectRoot);
 
-  const { signature: sig, error: loadError } = await loadSig(dir, relPath);
+  const { signature: sig, error: loadError } = await loadSig(ctx, relPath);
   if (!sig) {
     return {
       file: relPath,
@@ -125,7 +127,7 @@ export async function checkFile(
 
   let content: string;
   try {
-    content = await readFile(resolve(projectRoot, relPath), 'utf8');
+    content = await ctx.fs.readFile(resolve(projectRoot, relPath), 'utf8');
   } catch {
     return { file: relPath, status: 'modified', signature: sig };
   }
@@ -138,13 +140,13 @@ export async function checkFile(
   return { file: relPath, status: 'modified', signature: sig };
 }
 
-export async function checkAllSigned(projectRoot: string): Promise<CheckResult[]> {
-  const dir = sigDir(projectRoot);
-  const sigs = await listSigs(dir);
+export async function checkAllSigned(projectRoot: string, options?: { fs?: SigFS }): Promise<CheckResult[]> {
+  const ctx = createSigContext(projectRoot, { fs: options?.fs });
+  const sigs = await listSigs(ctx);
   const results: CheckResult[] = [];
 
   for (const sig of sigs) {
-    const result = await checkFile(projectRoot, sig.file);
+    const result = await checkFile(projectRoot, sig.file, { fs: ctx.fs });
     results.push(result);
   }
 

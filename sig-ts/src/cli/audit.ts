@@ -1,10 +1,11 @@
 import { readAuditLog } from '../core/audit.js';
-import { findProjectRoot, sigDir } from '../core/config.js';
+import { findProjectRoot } from '../core/config.js';
+import { createSigContext } from '../core/fs.js';
 
 export async function auditCommand(file?: string): Promise<void> {
   const projectRoot = await findProjectRoot();
-  const dir = sigDir(projectRoot);
-  const entries = await readAuditLog(dir, file);
+  const ctx = createSigContext(projectRoot);
+  const entries = await readAuditLog(ctx, file);
 
   if (entries.length === 0) {
     console.log(file ? `No audit entries for ${file}` : 'No audit entries');

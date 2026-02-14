@@ -1,6 +1,6 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { SigConfig, TemplateEngine } from '../types.js';
+import { NodeFS } from './fs.js';
+import type { SigConfig, SigFS, TemplateEngine } from '../types.js';
 
 const SIG_DIR = '.sig';
 const CONFIG_FILE = 'config.json';
@@ -8,6 +8,10 @@ const CONFIG_FILE = 'config.json';
 export const DEFAULT_CONFIG: SigConfig = {
   version: 1,
 };
+
+export interface ConfigIOOptions {
+  fs?: SigFS;
+}
 
 export function sigDir(projectRoot: string): string {
   return join(projectRoot, SIG_DIR);
@@ -17,27 +21,34 @@ export function configPath(projectRoot: string): string {
   return join(projectRoot, SIG_DIR, CONFIG_FILE);
 }
 
-export async function loadConfig(projectRoot: string): Promise<SigConfig> {
+export async function loadConfig(projectRoot: string, options?: ConfigIOOptions): Promise<SigConfig> {
+  const fs = options?.fs ?? new NodeFS();
   try {
-    const raw = await readFile(configPath(projectRoot), 'utf8');
+    const raw = await fs.readFile(configPath(projectRoot), 'utf8');
     return JSON.parse(raw) as SigConfig;
   } catch {
     return DEFAULT_CONFIG;
   }
 }
 
-export async function saveConfig(projectRoot: string, config: SigConfig): Promise<void> {
+export async function saveConfig(
+  projectRoot: string,
+  config: SigConfig,
+  options?: ConfigIOOptions
+): Promise<void> {
+  const fs = options?.fs ?? new NodeFS();
   const dir = sigDir(projectRoot);
-  await mkdir(dir, { recursive: true });
-  await writeFile(configPath(projectRoot), JSON.stringify(config, null, 2) + '\n', 'utf8');
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(configPath(projectRoot), JSON.stringify(config, null, 2) + '\n', 'utf8');
 }
 
 export async function initProject(
   projectRoot: string,
-  options?: { engine?: TemplateEngine | TemplateEngine[]; identity?: string }
+  options?: { engine?: TemplateEngine | TemplateEngine[]; identity?: string; fs?: SigFS }
 ): Promise<SigConfig> {
+  const fs = options?.fs ?? new NodeFS();
   const dir = sigDir(projectRoot);
-  await mkdir(join(dir, 'sigs'), { recursive: true });
+  await fs.mkdir(join(dir, 'sigs'), { recursive: true });
 
   const config: SigConfig = {
     version: 1,
@@ -51,7 +62,7 @@ export async function initProject(
     config.sign = { identity: options.identity };
   }
 
-  await saveConfig(projectRoot, config);
+  await saveConfig(projectRoot, config, { fs });
   return config;
 }
 

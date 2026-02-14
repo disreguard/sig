@@ -13,7 +13,7 @@ import { policyCommand } from './policy.js';
 const program = new Command()
   .name('sig')
   .description('Sign and verify prompt templates for AI agent security')
-  .version('0.1.0');
+  .version('0.3.0');
 
 program
   .command('init')

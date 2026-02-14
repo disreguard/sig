@@ -3,16 +3,16 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod/v3';
 import { verifyFile, checkFile, checkAllSigned } from '../core/verify.js';
 import { findProjectRoot, loadConfig } from '../core/config.js';
+import { createSigContext } from '../core/fs.js';
 import { updateAndSign } from '../core/update.js';
 import { resolveFilePolicy } from '../core/policy.js';
 import { readChain, validateChain } from '../core/chain.js';
 import { resolveContainedPath } from '../core/paths.js';
-import { sigDir } from '../core/config.js';
-import type { VerifyResult, CheckResult, UpdateProvenance } from '../types.js';
+import type { VerifyResult, UpdateProvenance } from '../types.js';
 
 const server = new McpServer({
   name: 'sig',
-  version: '0.1.0',
+  version: '0.3.0',
 });
 
 server.registerTool('verify', {
@@ -154,10 +154,10 @@ server.registerTool('view_chain', {
 }, async (args): Promise<{ content: { type: 'text'; text: string }[] }> => {
   const projectRoot = await findProjectRoot();
   const relPath = resolveContainedPath(projectRoot, args.file);
-  const dir = sigDir(projectRoot);
+  const ctx = createSigContext(projectRoot);
 
-  const entries = await readChain(dir, relPath);
-  const validation = await validateChain(dir, relPath);
+  const entries = await readChain(ctx, relPath);
+  const validation = await validateChain(ctx, relPath);
 
   return {
     content: [{ type: 'text', text: JSON.stringify({ file: relPath, chain: entries, validation }, null, 2) }],

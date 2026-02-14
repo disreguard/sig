@@ -48,6 +48,26 @@ export interface EngineDefinition {
   placeholders: RegExp[];
 }
 
+export interface Dirent {
+  name: string;
+  isDirectory(): boolean;
+}
+
+export interface SigFS {
+  readFile(path: string, encoding: 'utf8'): Promise<string>;
+  writeFile(path: string, content: string, encoding: 'utf8'): Promise<void>;
+  appendFile(path: string, content: string, encoding: 'utf8'): Promise<void>;
+  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+  readdir(path: string, options: { withFileTypes: true }): Promise<Dirent[]>;
+  unlink(path: string): Promise<void>;
+  access(path: string): Promise<void>;
+}
+
+export interface SigContext {
+  sigDir: string;
+  fs: SigFS;
+}
+
 export interface Signature {
   file: string;
   hash: string;
@@ -110,12 +130,22 @@ export interface SignContentOptions {
   metadata?: Record<string, string>;
 }
 
+export interface PersistentSignOptions {
+  id: string;
+  identity?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface ContentVerifyResult {
   verified: boolean;
   id: string;
   content?: string;
   signature?: ContentSignature;
   error?: string;
+}
+
+export interface ContentVerifier {
+  verify(id: string): ContentVerifyResult | Promise<ContentVerifyResult>;
 }
 
 // Update chain types
@@ -154,7 +184,9 @@ export interface UpdateAndSignOptions {
   /** Provenance: proof the update was authorized */
   provenance: UpdateProvenance;
   /** Optional ContentStore instance for validating signed_message provenance */
-  contentStore?: import('./core/content.js').ContentStore;
+  contentStore?: ContentVerifier;
+  /** Optional filesystem override */
+  fs?: SigFS;
 }
 
 export interface UpdateResult {
