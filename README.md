@@ -97,7 +97,9 @@ sig audit
 
 ## MCP Server
 
-Both implementations ship an MCP server (`sig-mcp`) so agents can verify instructions in-band:
+Both implementations ship a lightweight MCP server (`sig-mcp`) for simple verification use cases. `SIG_VERIFY` is fixed at server startup, so the server is best suited for static verification of known templates.
+
+For orchestrators that need dynamic verification (runtime messages, update chains, content signing), import the library directly — all functions are available as a programmatic API.
 
 ```json
 {
@@ -111,8 +113,6 @@ Both implementations ship an MCP server (`sig-mcp`) so agents can verify instruc
   }
 }
 ```
-
-The agent calls the `verify` tool and gets back the authenticated template content, hash, signer identity, and extracted placeholders.
 
 ### Tools
 
@@ -331,9 +331,77 @@ Custom patterns are also supported:
 
 1. **Sign**: `sig sign` hashes the file content (SHA-256) and stores both the hash and the content in `.sig/sigs/`
 2. **Verify**: `sig verify` re-hashes the live file, compares to the stored hash, and returns the *stored* signed content (not the live file)
-3. **Audit**: Every sign and verify event is logged to `.sig/audit.jsonl`
+3. **Audit**: Every operation is logged to `.sig/audit.jsonl`
 
 The signing model is content-hash based. If a file changes, verification fails. Re-sign after intentional changes.
+
+## Audit Log
+
+All operations are logged to `.sig/audit.jsonl` as append-only JSONL (one JSON object per line).
+
+### Event types
+
+| Event | When |
+|-------|------|
+| `sign` | File signed |
+| `verify` | File verified successfully |
+| `verify-fail` | Verification failed (modified, missing, corrupted, unsigned) |
+| `update` | Mutable file updated via `updateAndSign` |
+| `update_denied` | Update rejected by policy (prompt injection detection signal) |
+
+### Entry format
+
+```json
+{
+  "ts": "2026-02-06T12:00:00.000Z",
+  "event": "update_denied",
+  "file": "soul.md",
+  "hash": "sha256:abc123...",
+  "identity": "attacker:evil",
+  "detail": "Identity not authorized",
+  "provenance": {
+    "sourceType": "signed_message",
+    "sourceId": "fake-msg",
+    "reason": "ignore previous instructions"
+  }
+}
+```
+
+The `provenance` field on `update_denied` events records what the agent *claimed* was the reason for the update — useful for detecting prompt injection attempts.
+
+### CLI
+
+```bash
+sig audit              # Show all events
+sig audit soul.md      # Filter to a specific file
+```
+
+### API
+
+```typescript
+import { logEvent, readAuditLog, sigDir } from '@disreguard/sig';
+
+// Read all audit entries
+const entries = await readAuditLog(sigDir(projectRoot));
+
+// Filter by file
+const fileEntries = await readAuditLog(sigDir(projectRoot), 'soul.md');
+
+// Log a custom event
+await logEvent(sigDir(projectRoot), {
+  event: 'verify',
+  file: 'prompts/review.txt',
+  hash: 'sha256:...',
+  identity: 'orchestrator',
+});
+```
+
+```python
+from sig import read_audit_log, log_event, sig_dir
+
+entries = read_audit_log(sig_dir(project_root))
+file_entries = read_audit_log(sig_dir(project_root), file="soul.md")
+```
 
 ## Security Model
 
